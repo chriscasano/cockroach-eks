@@ -6,11 +6,9 @@ __*Why is this important?*__ For modernizing your skill set so you can develop m
 
 ## Prepare
 
-1) Sign up for [Amazon Web Services](https://aws.amazon.com/) account if you don't have one.  You can do this with GKE and other flavors of K8S but the instructions below will have to be adjusted.
+1- Sign up for [Amazon Web Services](https://aws.amazon.com/) account if you don't have one.  You can do this with GKE and other flavors of K8S but the instructions below will have to be adjusted.
 
-2) [Install helm](https://helm.sh/docs/intro/install/) - This is a package manger for deploying software on Kubernetes.
-
-I have a mac so [homebrew](https://brew.sh/) works the best...
+2- [Install helm](https://helm.sh/docs/intro/install/) - This is a package manger for deploying software on Kubernetes.  I have a mac so [homebrew](https://brew.sh/) works the best...
 
 `brew install helm`
 
@@ -18,26 +16,21 @@ I have a mac so [homebrew](https://brew.sh/) works the best...
 
 `helm repo update`
 
-3) [Install aws cli and eksctl](https://docs.aws.amazon.com/eks/latest/userguide/getting-started-eksctl.html)
-
-Make sure [AWS-IAM Authenticator](https://docs.aws.amazon.com/eks/latest/userguide/install-aws-iam-authenticator.html) and kubectl is installed too.  The eksctl installer should install these things.  If not...
+3- [Install aws cli and eksctl](https://docs.aws.amazon.com/eks/latest/userguide/getting-started-eksctl.html). Make sure [AWS-IAM Authenticator](https://docs.aws.amazon.com/eks/latest/userguide/install-aws-iam-authenticator.html) and kubectl is installed too.  The eksctl installer should install these things.  If not...
 
 `brew install aws-iam-authenticator`
 
 `brew install kubectl`
 
 ## Deploy an EKS Cluster
-You can utilize Cockroach Labs [documentation](https://www.cockroachlabs.com/docs/v19.2/orchestrate-cockroachdb-with-kubernetes-insecure.html#hosted-eks) as well for creating an EKS cluster with the proper resource settings.
-
-#### Create an EKS Cluster
-
-Update the EKS_CLUSTER_NAME and EKS_PUBLIC_KEY variables in the script below.
+You can utilize Cockroach Labs [documentation](https://www.cockroachlabs.com/docs/v19.2/orchestrate-cockroachdb-with-kubernetes-insecure.html#hosted-eks) as well for creating an EKS cluster with the proper resource settings.  Update the EKS_CLUSTER_NAME and EKS_PUBLIC_KEY variables in the script below.
 
   `./create_eks.sh`
 
 ## Deploy CockroachDB
+Two options here:  Insecure (Helm install) or Secure with custom CA (Manual Install)
 
-#### Install Cockroach (Insecure)
+### Install Cockroach (Insecure)
 
 While your EKS cluster is being created, you can start another terminal session and prepare Helm.
 
@@ -53,17 +46,11 @@ Ensure your template/values.yaml file with the following params
 
 `helm install my-release --values ./cockroachdb/templates/values.yaml stable/cockroachdb`
 
-#### Install Cockroach (Secure with Custom CA) - Manual Config
+### Install Cockroach (Secure with Custom CA) - Manual Config
 
-[Primary Documentation]( https://www.cockroachlabs.com/docs/v19.2/orchestrate-cockroachdb-with-kubernetes.html#step-2-start-cockroachdb)
+[Primary Documentation]( https://www.cockroachlabs.com/docs/v19.2/orchestrate-cockroachdb-with-kubernetes.html#step-2-start-cockroachdb) to do this is here.  Unfortunately you can not do a Helm install for a secure EKS install since EKS doesn't support certificate signing requests.  The StatefulSet in this repo is maintained [here](https://raw.githubusercontent.com/cockroachdb/cockroach/master/cloud/kubernetes/bring-your-own-certs/cockroachdb-statefulset.yaml)
 
-Unfortunately you can not do a Helm install for a secure EKS install since EKS doesn't support certificate signing requests.
-
-##### Get a local copy of the StatefulSet config file, or use the one in this repo.
-
-`curl -O https://raw.githubusercontent.com/cockroachdb/cockroach/master/cloud/kubernetes/bring-your-own-certs/cockroachdb-statefulset.yaml`
-
-##### Setup your certs and add them as EKS secrets
+#### Setup your certs and add them as EKS secrets
 
 `mkdir certs`
 
@@ -85,21 +72,19 @@ Unfortunately you can not do a Helm install for a secure EKS install since EKS d
 
 `kubectl create -f cockroachdb-statefulset.yaml`
 
-##### Initialize cluster
+#### Initialize cluster
 
 `kubectl exec -it cockroachdb-0 -- /cockroach/cockroach init --certs-dir=/cockroach/cockroach-certs`
 
-##### Check Admin UI & Forward UI Port
+#### Check Admin UI
 
 `kubectl port-forward cockroachdb-0 8080`
 
 If using Chrome and you get block by cert / privacy warning; type in "thisisunsafe".  Or just use Safari and click thru.
 
-##### Run SQL client / Create Database
+#### Run SQL Client & Create Todos Database
 
-Get the client config pod or just use the one local in this repo
-
-`curl -O https://raw.githubusercontent.com/cockroachdb/cockroach/master/cloud/kubernetes/bring-your-own-certs/client.yaml`
+The client.yaml file in this repo is maintained [here](https://raw.githubusercontent.com/cockroachdb/cockroach/master/cloud/kubernetes/bring-your-own-certs/client.yaml).  
 
 `kubectl create -f client.yaml`
 
@@ -126,7 +111,7 @@ Get the client config pod or just use the one local in this repo
 
 ## Deploy Flask application
 
-[Primary Documentation](https://www.cockroachlabs.com/docs/cockroachcloud/v19.2/deploy-a-python-to-do-app-with-flask-kubernetes-and-cockroachcloud.html)
+[Primary Documentation](https://www.cockroachlabs.com/docs/cockroachcloud/v19.2/deploy-a-python-to-do-app-with-flask-kubernetes-and-cockroachcloud.html) and [Primary Repo](https://github.com/cockroachdb/examples-python).  All I did was create a Dockerfile and mucked with the DB connection URI in the hello.cfg file to make this work for a secure CockroachDB cluster.
 
 #### Setup Docker Hub (optional)
 
@@ -144,20 +129,22 @@ If you want to connect your EKS cluster to your Docker Hub account, you can use 
 
 `kubectl create secret generic dockercred --from-file=.dockerconfigjson=.docker/config.json --type=kubernetes.io/dockerconfigjson`
 
-#### Run app
+#### Run the Flask app
 
 kubectl apply -f app-deployment.yaml
 
 kubectl port-forward `kubectl get pods -l app=flask | grep appdeploy | head -1 | awk '{print $1}'` 5000
 
 
-##### Kill a node
+#### Kill a node
+
+Try killing a node and observer the behavior
 
 `kubectl delete pod cockroachdb-2`
 
 ## Self Driving Demonstration
 
-Run apply_cockroach.sh to deploy the CockroachDB stateful set, Deploy the Flask app and do a Resilience test.
+If you're able to setup all of the above correctly, you can utilize these scripts to deploy and remove the Cockroach K8S resources.  Running apply_cockroach.sh will deploy the CockroachDB stateful set, Deploy the Flask app and do a Resilience test.
 
 `./apply_cockroach.sh`
 
@@ -165,7 +152,8 @@ To remove all K8S applied resources, run the following script
 
 `./remove_all.sh`
 
-#### Handy Commands
+## Miscellaneous stuff..
+### Handy Commands
 
 Also, it's a pain doing kubectl for everything.  It's to put an alias such as 'k' for kubectl in your .bash_profile.
 
@@ -184,13 +172,13 @@ Also, it's a pain doing kubectl for everything.  It's to put an alias such as 'k
 `kubectl get secrets` - get secrets
 
 
-#### Errors / Issues
+### Errors / Issues
 ##### 1) If receiving the following error when creating an EKS cluster, go into CloudFormation UI and delete the stack mentioned below.  
 
   [✖]  creating CloudFormation stack "eksctl-chrisc-test-cluster": AlreadyExistsException: Stack [eksctl-chrisc-test-cluster] already exists
 	  status code: 400, request id: c857aabf-2dea-4f54-b58a-da91c5a88c60
 
-#### Documentation References
+### Documentation References
 
 - [kubectl Cheat Sheet](https://kubernetes.io/docs/reference/kubectl/cheatsheet/#deleting-resources)
 - [Cockroach EKS Deployment](https://www.cockroachlabs.com/docs/v19.2/orchestrate-cockroachdb-with-kubernetes-insecure.html#hosted-eks)
