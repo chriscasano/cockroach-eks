@@ -125,7 +125,9 @@ Only do this if you want to re-dockerize the Flask app.  Otherwise, you can pull
 
 `docker push hello-app`
 
-If you want to connect your EKS cluster to your Docker Hub account, you can use the following snippet to add Docker credentials into EKS.
+If you want to connect your EKS cluster to your Docker Hub account, you can use the following snippet to add Docker credentials into EKS.  Run this from your home directory.
+
+`cd ~`
 
 `kubectl create secret generic dockercred --from-file=.dockerconfigjson=.docker/config.json --type=kubernetes.io/dockerconfigjson`
 
